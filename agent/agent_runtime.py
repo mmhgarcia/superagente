@@ -3,8 +3,15 @@ import os
 import uuid
 from .skill_store import SkillStore
 from . import llm
+from .skills.calcular import CalcularSkill
+from .skills.resumir import ResumirSkill
 
 AGENTS_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "agents.json")
+
+_EXECUTABLE_SKILLS = {
+    "calcular": CalcularSkill(),
+    "resumir": ResumirSkill(),
+}
 
 
 class Agent:
@@ -71,6 +78,16 @@ class AgentRuntime:
 
         agent.history.append({"role": "user", "content": message})
 
+        # Router de skills: probar skills ejecutables primero
+        for sid in agent.skills:
+            skill = _EXECUTABLE_SKILLS.get(sid)
+            if skill and skill.match(message):
+                result = skill.execute(message, history=agent.history)
+                agent.history.append({"role": "assistant", "content": result})
+                self._save()
+                return agent.history, result
+
+        # Fallback: responder con LLM
         skills_desc = []
         for sid in agent.skills:
             s = self._skill_store.get_skill(sid)
