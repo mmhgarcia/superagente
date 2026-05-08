@@ -3,13 +3,11 @@ import os
 import uuid
 from .skill_store import SkillStore
 from . import llm
-from .skills.calcular import CalcularSkill
 from .skills.resumir import ResumirSkill
 
 AGENTS_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "agents.json")
 
 _EXECUTABLE_SKILLS = {
-    "calcular": CalcularSkill(),
     "resumir": ResumirSkill(),
 }
 

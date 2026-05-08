@@ -1,9 +1,9 @@
 import requests
 
-LM_STUDIO_URL = "http://host.docker.internal:1234/v1"
-DEFAULT_MODEL = "tinyllama-1.1b-chat-v1.0"
+OLLAMA_URL = "http://host.docker.internal:11435/v1"
+DEFAULT_MODEL = "qwen2.5-coder:7b"
 
-def generate(prompt, system_prompt="", model=DEFAULT_MODEL, max_tokens=300, temperature=0.7):
+def generate(prompt, system_prompt="", model=DEFAULT_MODEL, max_tokens=200, temperature=0.7):
     messages = []
     if system_prompt:
         messages.append({"role": "system", "content": system_prompt})
@@ -16,7 +16,7 @@ def generate(prompt, system_prompt="", model=DEFAULT_MODEL, max_tokens=300, temp
         "max_tokens": max_tokens,
     }
     try:
-        resp = requests.post(f"{LM_STUDIO_URL}/chat/completions", json=payload, timeout=60)
+        resp = requests.post(f"{OLLAMA_URL}/chat/completions", json=payload, timeout=300)
         resp.raise_for_status()
         data = resp.json()
         msg = data["choices"][0]["message"]

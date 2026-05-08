@@ -10,6 +10,7 @@ export default defineConfig({
       '/generate_agent': 'http://backend:8000',
       '/agents': 'http://backend:8000',
       '/skills': 'http://backend:8000',
+      '/health': 'http://backend:8000',
     }
   }
 })

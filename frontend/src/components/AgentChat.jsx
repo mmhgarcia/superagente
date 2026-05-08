@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { listAgents, askAgent } from '../api'
+import { listAgents, askAgent, checkLlmHealth } from '../api'
 
 export default function AgentChat() {
   const [agents, setAgents] = useState([])
@@ -7,10 +7,15 @@ export default function AgentChat() {
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+  const [llmDown, setLlmDown] = useState(false)
   const bottomRef = useRef(null)
 
   useEffect(() => {
     listAgents().then(d => setAgents(d.agents)).catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    checkLlmHealth().then(d => setLlmDown(d.status !== 'ok')).catch(() => setLlmDown(true))
   }, [])
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
@@ -40,6 +45,11 @@ export default function AgentChat() {
   return (
     <div className="card">
       <h2>Probar agente</h2>
+      {llmDown && (
+        <div style={{background:'#7f1d1d',color:'#fca5a5',padding:'0.75rem',borderRadius:'6px',marginBottom:'1rem',fontSize:'0.9rem'}}>
+          ⚠️ LLM no disponible. Ejecuta en el host: <code style={{background:'#450a0a',padding:'2px 6px',borderRadius:'4px'}}>python3 /home/msi/proyectos/superagente/scripts/ollama_forward.py</code>
+        </div>
+      )}
       {agents.length === 0 ? (
         <p style={{color:'#fde047'}}>Primero crea un agente en "Crear Agente".</p>
       ) : (

@@ -1,5 +1,9 @@
 const BASE = ''
 
+export function checkLlmHealth() {
+  return request('/health/llm')
+}
+
 async function request(path, options = {}) {
   const res = await fetch(`${BASE}${path}`, {
     headers: { 'Content-Type': 'application/json' },
