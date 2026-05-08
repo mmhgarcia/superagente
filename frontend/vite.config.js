@@ -9,7 +9,7 @@ export default defineConfig({
     proxy: {
       '/generate_agent': 'http://backend:8000',
       '/agents': 'http://backend:8000',
-      '/config': 'http://backend:8000',
+      '/skills': 'http://backend:8000',
     }
   }
 })
