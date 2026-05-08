@@ -11,8 +11,6 @@ const TABS = [
 
 export default function App() {
   const [tab, setTab] = useState('create')
-  const [lastAgent, setLastAgent] = useState(null)
-  const [agents, setAgents] = useState([])
 
   return (
     <div className="app">
@@ -30,18 +28,9 @@ export default function App() {
           ))}
         </nav>
       </header>
-
       <main>
-        {tab === 'create' && (
-          <CreateAgent
-            onCreated={(agent) => {
-              setLastAgent(agent)
-              setAgents(prev => [...prev, agent])
-              setTab('chat')
-            }}
-          />
-        )}
-        {tab === 'chat' && <AgentChat agent={lastAgent} agents={agents} />}
+        {tab === 'create' && <CreateAgent onCreated={() => setTab('chat')} />}
+        {tab === 'chat' && <AgentChat />}
         {tab === 'config' && <AgentConfig />}
       </main>
     </div>

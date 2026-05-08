@@ -18,3 +18,29 @@ export function generateAgent(name, description) {
     body: JSON.stringify({ name, description }),
   })
 }
+
+export function createAgent(name, description, skills = ['base_chat']) {
+  return request('/agents/create', {
+    method: 'POST',
+    body: JSON.stringify({ name, description, skills }),
+  })
+}
+
+export function listAgents() {
+  return request('/agents')
+}
+
+export function askAgent(agentId, message) {
+  return request(`/agents/${agentId}/ask`, {
+    method: 'POST',
+    body: JSON.stringify({ message }),
+  })
+}
+
+export function getAgentHistory(agentId) {
+  return request(`/agents/${agentId}/history`)
+}
+
+export function listSkills() {
+  return request('/skills')
+}

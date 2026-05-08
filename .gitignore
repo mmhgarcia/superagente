@@ -23,3 +23,8 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Runtime data
+data/*.json
+*.json
+tests/.pytest_cache\n.pytest_cache
