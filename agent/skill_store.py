@@ -70,6 +70,19 @@ class SkillStore:
         self._save()
         return skill
 
+    def update_skill(self, skill_id, name=None, description=None, prompt_hint=None):
+        if skill_id not in self._skills:
+            raise ValueError(f"Skill '{skill_id}' no encontrada")
+        skill = self._skills[skill_id]
+        if name is not None:
+            skill["name"] = name
+        if description is not None:
+            skill["description"] = description
+        if prompt_hint is not None:
+            skill["prompt_hint"] = prompt_hint
+        self._save()
+        return skill
+
     def remove_skill(self, skill_id):
         if skill_id not in self._skills:
             raise ValueError(f"Skill '{skill_id}' no encontrada")

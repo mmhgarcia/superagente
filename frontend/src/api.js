@@ -12,6 +12,8 @@ async function request(path, options = {}) {
   return res.json()
 }
 
+// --- Agentes ---
+
 export function generateAgent(name, description) {
   return request('/generate_agent/', {
     method: 'POST',
@@ -41,6 +43,28 @@ export function getAgentHistory(agentId) {
   return request(`/agents/${agentId}/history`)
 }
 
+// --- Skills ---
+
 export function listSkills() {
   return request('/skills')
+}
+
+export function addSkill(id, name, description, prompt_hint = '') {
+  return request('/skills', {
+    method: 'POST',
+    body: JSON.stringify({ id, name, description, prompt_hint }),
+  })
+}
+
+export function updateSkill(skillId, data) {
+  return request(`/skills/${skillId}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  })
+}
+
+export function deleteSkill(skillId) {
+  return request(`/skills/${skillId}`, {
+    method: 'DELETE',
+  })
 }

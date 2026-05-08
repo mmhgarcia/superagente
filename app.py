@@ -46,6 +46,27 @@ async def add_skill(req: SkillRequest):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+class SkillUpdate(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    prompt_hint: str | None = None
+
+@app.put("/skills/{skill_id}")
+async def update_skill(skill_id: str, req: SkillUpdate):
+    try:
+        skill = skill_store.update_skill(skill_id, req.name, req.description, req.prompt_hint)
+        return {"skill": skill}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+@app.delete("/skills/{skill_id}")
+async def delete_skill(skill_id: str):
+    try:
+        skill_store.remove_skill(skill_id)
+        return {"status": "deleted"}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
 # --- Endpoints Agentes ---
 
 @app.post("/agents/create")
