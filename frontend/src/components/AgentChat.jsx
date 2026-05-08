@@ -47,7 +47,7 @@ export default function AgentChat() {
       <h2>Probar agente</h2>
       {llmDown && (
         <div style={{background:'#7f1d1d',color:'#fca5a5',padding:'0.75rem',borderRadius:'6px',marginBottom:'1rem',fontSize:'0.9rem'}}>
-          ⚠️ LLM no disponible. Ejecuta en el host: <code style={{background:'#450a0a',padding:'2px 6px',borderRadius:'4px'}}>python3 /home/msi/proyectos/superagente/scripts/ollama_forward.py</code>
+          ⚠️ LLM no disponible. Ejecuta en el host: <code style={{background:'#450a0a',padding:'2px 6px',borderRadius:'4px'}}>setsid python3 /home/msi/proyectos/superagente/scripts/ollama_forward.py &</code>
         </div>
       )}
       {agents.length === 0 ? (

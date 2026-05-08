@@ -27,8 +27,8 @@ class CalcularSkill(BaseSkill):
             r"(\d+)\s*por\s*ciento\s*de\s*(\d+)",
             r"ra[ií]z\s*(?:cuadrada|c[uú]bica)?\s*de\s*(\d+)",
             r"ra[ií]z\s*(?:cuadrada|c[uú]bica)?\s*\((\d+)\)",
-            r"(seno|sin|coseno|cos|tangente|tan)\s*de\s*(\d+)",
-            r"(seno|sin|coseno|cos|tangente|tan)\s*\((\d+)\)",
+            r"(seno|sen|sin|coseno|cos|tangente|tan)\s*de\s*(\d+)",
+            r"(seno|sen|sin|coseno|cos|tangente|tan)\s*\((\d+)\)",
         ]
 
     def match(self, message: str) -> bool:
@@ -50,18 +50,20 @@ class CalcularSkill(BaseSkill):
                 result = math.sqrt(n)
                 return f"Raíz cuadrada de {n:.0f} = {result}"
 
-        m = re.search(r"(seno|sin|coseno|cos|tangente|tan)\s*(?:de\s*)?(\d+)", msg)
+        m = re.search(r"(seno|sen|sin|coseno|cos|tangente|tan)\s*(?:de\s*)?\(?(\d+)\)?", msg)
         if m:
-            func = m.group(1)
+            raw_func = m.group(1)
             n = float(m.group(2))
             rad = math.radians(n)
-            if func in ("seno", "sin"):
+            func_key = "sin" if raw_func in ("seno", "sen", "sin") else ("cos" if raw_func in ("coseno", "cos") else "tan")
+            if func_key == "sin":
                 result = math.sin(rad)
-            elif func in ("coseno", "cos"):
+            elif func_key == "cos":
                 result = math.cos(rad)
             else:
                 result = math.tan(rad)
-            return f"{func.title()} de {n:.0f}° = {result:.4f}"
+            label = {"sin": "Seno", "cos": "Coseno", "tan": "Tangente"}[func_key]
+            return f"{label} de {n:.0f}° = {result:.4f}"
 
         m = re.search(r"(\d+)\s*(?:por\s*ciento|%)\s*de\s*(\d+)", msg)
         if m:

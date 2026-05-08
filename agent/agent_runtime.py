@@ -3,11 +3,14 @@ import os
 import uuid
 from .skill_store import SkillStore
 from . import llm
+from .parser import parse_response
+from .skills.calcular import CalcularSkill
 from .skills.resumir import ResumirSkill
 
 AGENTS_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "agents.json")
 
 _EXECUTABLE_SKILLS = {
+    "calcular": CalcularSkill(),
     "resumir": ResumirSkill(),
 }
 
@@ -69,49 +72,87 @@ class AgentRuntime:
         del self._agents[agent_id]
         self._save()
 
+    def _build_tools_text(self, agent):
+        lines = []
+        for sid in agent.skills:
+            if sid in _EXECUTABLE_SKILLS:
+                s = self._skill_store.get_skill(sid)
+                if s:
+                    schema = {
+                        "calcular": 'Args: {"query": "expresión en lenguaje natural ej: 15% de 3400"}',
+                        "resumir": 'Args: {"texto": "texto a resumir"}',
+                    }.get(sid, "")
+                    lines.append(f"- {sid}: {s['description']} {schema}")
+        return "\n".join(lines)
+
+    def _system_prompt(self, agent):
+        tools_text = self._build_tools_text(agent)
+        return (
+            f"Eres {agent.name}, un agente autónomo con acceso a herramientas.\n\n"
+            f"Propósito: {agent.description}\n\n"
+            f"Responde ÚNICAMENTE en JSON. El JSON debe tener esta estructura:\n\n"
+            f"1. Si necesitas usar una herramienta:\n"
+            f'   {{"tool": "nombre", "args": {{...}}}}\n\n'
+            f"2. Si ya tienes la respuesta:\n"
+            f'   {{"reply": "tu respuesta aquí"}}\n\n'
+            f"Herramientas disponibles:\n{tools_text}\n\n"
+            f"Reglas:\n"
+            f"- Un solo tool o reply por respuesta\n"
+            f"- Nunca mezcles tool con reply\n"
+            f"- No agregues texto fuera del JSON"
+        )
+
+    def _format_history(self, history):
+        labels = {"user": "Usuario", "assistant": "Asistente", "system": "Sistema"}
+        return "\n".join(
+            f"{labels.get(m['role'], 'Sistema')}: {m['content']}"
+            for m in history[-8:]
+        )
+
+    def _execute_tool(self, parsed):
+        skill = _EXECUTABLE_SKILLS.get(parsed["name"])
+        if not skill:
+            return f"Error: herramienta '{parsed['name']}' no disponible"
+        return skill.execute_tool(parsed["args"])
+
     def ask(self, agent_id, message):
         agent = self._agents.get(agent_id)
         if not agent:
             return None, "Agente no encontrado"
 
         agent.history.append({"role": "user", "content": message})
+        system = self._system_prompt(agent)
+        working = list(agent.history)
+        final = None
+        max_steps = 3
 
-        # Router de skills: probar skills ejecutables primero
-        for sid in agent.skills:
-            skill = _EXECUTABLE_SKILLS.get(sid)
-            if skill and skill.match(message):
-                result = skill.execute(message, history=agent.history)
-                agent.history.append({"role": "assistant", "content": result})
-                self._save()
-                return agent.history, result
+        for step in range(max_steps):
+            history_text = self._format_history(working)
+            prompt = f"{history_text}\nAsistente:"
 
-        # Fallback: responder con LLM
-        skills_desc = []
-        for sid in agent.skills:
-            s = self._skill_store.get_skill(sid)
-            if s:
-                skills_desc.append(f"- {s['name']}: {s['description']}")
-        skills_text = "\n".join(skills_desc)
+            raw = llm.generate(prompt, system_prompt=system)
+            if raw is None:
+                if step == 0:
+                    agent.history.pop()
+                return None, "El LLM no respondió a tiempo"
 
-        system_prompt = (
-            f"Eres '{agent.name}', un agente autónomo.\n"
-            f"Propósito: {agent.description}\n\n"
-            f"Tus habilidades:\n{skills_text}\n\n"
-            f"Responde de forma clara y útil."
-        )
+            parsed = parse_response(raw)
 
-        history_text = "\n".join(
-            f"{'Usuario' if m['role']=='user' else agent.name}: {m['content']}"
-            for m in agent.history[-6:]
-        )
-        prompt = f"{history_text}\n{agent.name}:"
+            if parsed["type"] == "reply":
+                final = parsed["content"]
+                break
+            elif parsed["type"] == "tool":
+                result = self._execute_tool(parsed)
+                working.append({"role": "assistant", "content": raw})
+                working.append({"role": "system", "content": f"Resultado de {parsed['name']}: {result}"})
+                final = result
+            else:
+                final = raw
+                break
 
-        response = llm.generate(prompt, system_prompt=system_prompt)
+        if final is None:
+            final = "El agente no pudo completar la solicitud"
 
-        if response is None:
-            agent.history.pop()
-            return None, "El LLM no respondió a tiempo"
-
-        agent.history.append({"role": "assistant", "content": response})
+        agent.history.append({"role": "assistant", "content": str(final)})
         self._save()
-        return agent.history, response
+        return agent.history, str(final)
