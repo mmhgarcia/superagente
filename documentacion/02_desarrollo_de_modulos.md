@@ -1,57 +1,77 @@
-# Fase 2: Desarrollo de Módulos
+# Fase 2: Desarrollo de Módulos (Smart Factory)
 
-## Tarea 2.1: Implementar el módulo de percepción
-
-### Subtarea: Configurar sensores y entrada de datos
-- [ ] Definir formatos de entrada aceptados (texto, voz, archivos, APIs)
-- [ ] Implementar parsers para diferentes tipos de entrada
-- [ ] Configurar preprocesamiento de datos (limpieza, normalización)
-- [ ] Integrar fuentes de datos externas (APIs, webhooks, bases de datos)
-- [ ] Implementar detección de intenciones o clasificación de inputs
+## Objetivo
+Construir agentes funcionales con estado, memoria y capacidad de conversación real, más el Skill Store que los configura.
 
 ---
 
-## Tarea 2.2: Desarrollar el módulo de razonamiento
+## Tarea 2.1: Implementar el Skill Store
 
-### Subtarea: Reducir y ajustar reglas de decisión
-- [ ] Definir árbol de decisiones o lógica de enrutamiento
-- [ ] Implementar sistema de prompts para el LLM
-- [ ] Configurar parámetros de inferencia (temperatura, top-p, etc.)
-- [ ] Crear templates de prompts reutilizables
-- [ ] Documentar reglas de negocio y lógica de decisión
+### Subtarea: Modelo de datos y almacenamiento
+- [ ] Definir esquema de skills (id, nombre, descripción, función, parámetros)
+- [ ] Implementar Skill Store en memoria (JSON) para PoC
+- [ ] Crear API REST: listar skills, obtener skill, registrar skill
+- [ ] Implementar asignación de skills a agentes
 
-### Subtarea: Integrar algoritmos de aprendizaje
-- [ ] Implementar RAG (Retrieval-Augmented Generation) si aplica
-- [ ] Configurar fine-tuning si es necesario
-- [ ] Integrar aprendizaje por feedback (RLHF simplificado)
-- [ ] Implementar memoria de casos previos (case-based reasoning)
-- [ ] Configurar métricas de mejora continua
+### Subtarea: Catálogo inicial de skills
+- [ ] `base_chat`: Conversación básica
+- [ ] `calcular`: Operaciones matemáticas simples
+- [ ] `buscar`: Búsqueda en web (simulada)
+- [ ] `formatear`: Dar formato estructurado a respuestas
 
 ---
 
-## Tarea 2.3: Crear el módulo de acción
+## Tarea 2.2: Implementar el Agent Runtime
 
-### Subtarea: Programar actuadores y respuestas
-- [ ] Definir catálogo de acciones disponibles
-- [ ] Implementar ejecutores de herramientas (tool executors)
-- [ ] Configurar generación de respuestas en diferentes formatos
-- [ ] Implementar sistema de confirmación para acciones críticas
-- [ ] Manejar timeouts y errores en ejecución de acciones
+### Subtarea: Modelo de agente
+- [ ] Definir clase Agent con estado, memoria, skills asignadas
+- [ ] Implementar memoria de sesión (contexto conversacional)
+- [ ] Implementar almacenamiento de agentes (en memoria)
 
----
-
-## Tarea 2.4: Establecer la interfaz de usuario
-
-- [ ] Diseñar wireframes o mockups de la interfaz
-- [ ] Implementar API de comunicación (REST, WebSocket, gRPC)
-- [ ] Crear cliente de chat (CLI, web, o integración a plataforma)
-- [ ] Implementar streaming de respuestas en tiempo real
-- [ ] Agregar indicadores de progreso y estado del agente
+### Subtarea: API de agentes
+- [ ] `POST /agents/create` — Crear agente (refactor desde `/generate_agent`)
+- [ ] `GET /agents` — Listar agentes
+- [ ] `GET /agents/{id}` — Ver detalle de agente
+- [ ] `DELETE /agents/{id}` — Eliminar agente
 
 ---
 
-## Criterios de aceptación por módulo
-- Código con tests unitarios (>80% cobertura)
-- Documentación de API de cada módulo
-- Logs estructurados para debugging
-- Manejo de errores con mensajes claros
+## Tarea 2.3: Implementar el chat real
+
+### Subtarea: Percepción
+- [ ] Parsear mensajes del usuario
+- [ ] Detectar intención básica
+- [ ] Validar entrada y sanitizar
+
+### Subtarea: Razonamiento
+- [ ] Construir system prompt con personalidad y skills del agente
+- [ ] Integrar historial conversacional en el prompt
+- [ ] Enviar a LLM (TinyLlama) y recibir respuesta
+- [ ] Manejar errores y timeouts
+
+### Subtarea: Acción
+- [ ] Ejecutar skills asociadas al agente cuando corresponda
+- [ ] Devolver respuesta formateada
+
+### Subtarea: API de chat
+- [ ] `POST /agents/{id}/ask` — Enviar mensaje y recibir respuesta
+- [ ] `GET /agents/{id}/history` — Ver historial de conversación
+
+---
+
+## Tarea 2.4: Conectar frontend al chat real
+
+- [ ] AgentChat.jsx: enviar mensajes a `POST /agents/{id}/ask`
+- [ ] Mostrar respuestas en tiempo real
+- [ ] Mostrar indicador de "pensando..."
+- [ ] Mostrar historial de conversación
+
+---
+
+## Criterios de aceptación
+- [ ] Skill Store funcional con 4+ skills
+- [ ] Agentes con estado y memoria persistente
+- [ ] Chat real con LLM funcional
+- [ ] Frontend conectado al chat real
+- [ ] Tests unitarios para módulos core
+- [ ] Manejo de errores y timeouts
