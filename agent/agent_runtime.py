@@ -83,23 +83,35 @@ class AgentRuntime:
                         "resumir": 'Args: {"texto": "texto a resumir"}',
                     }.get(sid, "")
                     lines.append(f"- {sid}: {s['description']} {schema}")
+        if agent.name == "coordinador":
+            lines.append('- delegar: pasar una tarea a otro agente. Args: {"agente": "nombre", "mensaje": "consulta"}')
         return "\n".join(lines)
 
     def _system_prompt(self, agent):
         tools_text = self._build_tools_text(agent)
+        is_coordinador = agent.name == "coordinador"
+        extra = ""
+        if is_coordinador:
+            agents_list = "\n".join(
+                f"- {a.name}: {a.description}"
+                for a in self._agents.values()
+                if a.id != agent.id
+            )
+            extra = (
+                f"\n\n"
+                f"Para delegar tareas usa: {{\"tool\": \"delegar\", \"args\": {{\"agente\": \"nombre\", \"mensaje\": \"consulta\"}}}}\n"
+                f"Agentes disponibles:\n{agents_list}"
+            )
         return (
-            f"Eres {agent.name}, un agente autónomo con acceso a herramientas.\n\n"
+            f"Eres {agent.name}, un agente autónomo.\n\n"
             f"Propósito: {agent.description}\n\n"
-            f"Responde ÚNICAMENTE en JSON. El JSON debe tener esta estructura:\n\n"
-            f"1. Si necesitas usar una herramienta:\n"
-            f'   {{"tool": "nombre", "args": {{...}}}}\n\n'
-            f"2. Si ya tienes la respuesta:\n"
-            f'   {{"reply": "tu respuesta aquí"}}\n\n'
-            f"Herramientas disponibles:\n{tools_text}\n\n"
+            f"Responde ÚNICAMENTE en JSON:\n"
+            f'  {{\"reply\": "tu respuesta aquí"}}\n\n'
+            f"Herramientas disponibles:\n{tools_text}"
+            f"{extra}\n\n"
             f"Reglas:\n"
-            f"- Un solo tool o reply por respuesta\n"
-            f"- Nunca mezcles tool con reply\n"
-            f"- No agregues texto fuera del JSON"
+            f"- Si no tienes la información, di honestamente que no está disponible\n"
+            f"- Responde ÚNICAMENTE con JSON, sin texto adicional"
         )
 
     def _format_history(self, history):
@@ -110,10 +122,25 @@ class AgentRuntime:
         )
 
     def _execute_tool(self, parsed):
+        if parsed["name"] == "delegar":
+            args = parsed["args"]
+            target_name = args.get("agente", "")
+            mensaje = args.get("mensaje", "")
+            target = self._find_agent_by_name(target_name)
+            if not target:
+                return f"Error: agente '{target_name}' no encontrado"
+            _, respuesta = self.ask(target.id, mensaje)
+            return respuesta
         skill = _EXECUTABLE_SKILLS.get(parsed["name"])
         if not skill:
             return f"Error: herramienta '{parsed['name']}' no disponible"
         return skill.execute_tool(parsed["args"])
+
+    def _find_agent_by_name(self, name):
+        for a in self._agents.values():
+            if a.name == name:
+                return a
+        return None
 
     def ask(self, agent_id, message):
         agent = self._agents.get(agent_id)
