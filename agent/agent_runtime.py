@@ -107,25 +107,38 @@ class AgentRuntime:
                 f"Para delegar tareas usa: {{\"tool\": \"delegar\", \"args\": {{\"agente\": \"nombre\", \"mensaje\": \"consulta\"}}}}\n"
                 f"Agentes disponibles:\n{agents_list}"
             )
-        base_rules = (
-            f"- Si no tienes la información, di honestamente que no está disponible\n"
+        has_tools = bool(tools_text.strip())
+        base_rules = ""
+        if has_tools:
+            base_rules += (
+                f"- Revisa si puedes responder usando una herramienta disponible. Si sí, USA la herramienta.\n"
+                f"- Si la herramienta responde con datos, presenta esos datos como respuesta.\n"
+                f"- No digas 'no disponible' sin antes intentar usar una herramienta.\n"
+            )
+        base_rules += (
+            f"- Si no tienes la información ni herramientas para obtenerla, di honestamente que no está disponible\n"
             f"- Responde ÚNICAMENTE con JSON, sin texto adicional"
         )
         if is_coordinador:
             rules = (
                 f"- Saluda/despídete directamente si es solo cortesía (hola, gracias, chao)\n"
-                f"- Para TODO lo demás, DEBES delegar al agente correcto. NO respondas directamente preguntas técnicas.\n"
+                f"- Para TODO lo demás, DEBES usar delegar. NUNCA respondas preguntas técnicas directamente.\n"
                 f"- Lee bien la descripción de cada agente antes de delegar\n"
-                f"- Si ningún agente puede ayudar, responde que no está disponible y sugiere contactar soporte\n"
-                f"{base_rules}"
+                f"- Ejemplo: productos, stock, ventas o inventario → delegar a datos\n"
+                f"- Ejemplo: horarios, facturas o políticas → delegar a atencion\n"
+                f"- Ejemplo: cálculos, IVA o finanzas → delegar a finanzas\n"
+                f"- Si un agente puede responder, USA delegar. No digas 'no disponible' sin antes delegar.\n"
+                f"- Solo si ningún agente es adecuado, responde que no está disponible.\n"
+                f"- Responde ÚNICAMENTE con JSON, sin texto adicional"
             )
         else:
             rules = base_rules
         return (
             f"Eres {agent.name}, un agente autónomo.\n\n"
             f"Propósito: {agent.description}\n\n"
-            f"Responde ÚNICAMENTE en JSON:\n"
-            f'  {{\"reply\": "tu respuesta aquí"}}\n\n'
+            f"Responde ÚNICAMENTE en JSON. Elige entre:\n"
+            f'  {{\"tool\": "nombre", "args": {{...}}}}  — si necesitas una herramienta\n'
+            f'  {{\"reply": "tu respuesta aquí"}}        — si ya tienes la respuesta\n\n'
             f"Herramientas disponibles:\n{tools_text}"
             f"{extra}\n\n"
             f"Reglas:\n{rules}"
@@ -159,12 +172,36 @@ class AgentRuntime:
                 return a
         return None
 
+    def _route_message(self, message):
+        msg = message.lower()
+        routes = {
+            "datos": ["producto", "inventario", "stock", "precio", "venta", "categoria", "categoría", "listado", "cuántos", "cuantos", "registrado"],
+            "atencion": ["horario", "factura", "devolucion", "devolución", "envio", "envío", "pago", "garantia", "garantía", "contacto", "política", "politica"],
+            "finanzas": ["iva", "finanzas", "contabilidad", "impuesto", "presupuesto", "interés", "interes", "tasa", "descuento"],
+        }
+        for agent_name, keywords in routes.items():
+            if any(k in msg for k in keywords):
+                target = self._find_agent_by_name(agent_name)
+                if target:
+                    return agent_name
+        return None
+
     def ask(self, agent_id, message):
         agent = self._agents.get(agent_id)
         if not agent:
             return None, "Agente no encontrado"
 
         agent.history.append({"role": "user", "content": message})
+
+        if agent.name == "coordinador":
+            routed = self._route_message(message)
+            if routed:
+                delegar = {"name": "delegar", "args": {"agente": routed, "mensaje": message}}
+                result = self._execute_tool(delegar)
+                agent.history.append({"role": "assistant", "content": str(result)})
+                self._save()
+                return agent.history, str(result)
+
         system = self._system_prompt(agent)
         working = list(agent.history)
         final = None
