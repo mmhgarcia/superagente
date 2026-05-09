@@ -6,12 +6,16 @@ from . import llm
 from .parser import parse_response
 from .skills.calcular import CalcularSkill
 from .skills.resumir import ResumirSkill
+from .skills.faq import ConsultarFaqSkill
+from .skills.db import ConsultarDbSkill
 
 AGENTS_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "agents.json")
 
 _EXECUTABLE_SKILLS = {
     "calcular": CalcularSkill(),
     "resumir": ResumirSkill(),
+    "consultar_faq": ConsultarFaqSkill(),
+    "consultar_db": ConsultarDbSkill(),
 }
 
 
@@ -81,6 +85,7 @@ class AgentRuntime:
                     schema = {
                         "calcular": 'Args: {"query": "expresión en lenguaje natural ej: 15% de 3400"}',
                         "resumir": 'Args: {"texto": "texto a resumir"}',
+                        "consultar_db": 'Args: {"query": "consulta SQL ej: SELECT * FROM productos"}',
                     }.get(sid, "")
                     lines.append(f"- {sid}: {s['description']} {schema}")
         if agent.name == "coordinador":
@@ -102,6 +107,20 @@ class AgentRuntime:
                 f"Para delegar tareas usa: {{\"tool\": \"delegar\", \"args\": {{\"agente\": \"nombre\", \"mensaje\": \"consulta\"}}}}\n"
                 f"Agentes disponibles:\n{agents_list}"
             )
+        base_rules = (
+            f"- Si no tienes la información, di honestamente que no está disponible\n"
+            f"- Responde ÚNICAMENTE con JSON, sin texto adicional"
+        )
+        if is_coordinador:
+            rules = (
+                f"- Saluda/despídete directamente si es solo cortesía (hola, gracias, chao)\n"
+                f"- Para TODO lo demás, DEBES delegar al agente correcto. NO respondas directamente preguntas técnicas.\n"
+                f"- Lee bien la descripción de cada agente antes de delegar\n"
+                f"- Si ningún agente puede ayudar, responde que no está disponible y sugiere contactar soporte\n"
+                f"{base_rules}"
+            )
+        else:
+            rules = base_rules
         return (
             f"Eres {agent.name}, un agente autónomo.\n\n"
             f"Propósito: {agent.description}\n\n"
@@ -109,9 +128,7 @@ class AgentRuntime:
             f'  {{\"reply\": "tu respuesta aquí"}}\n\n'
             f"Herramientas disponibles:\n{tools_text}"
             f"{extra}\n\n"
-            f"Reglas:\n"
-            f"- Si no tienes la información, di honestamente que no está disponible\n"
-            f"- Responde ÚNICAMENTE con JSON, sin texto adicional"
+            f"Reglas:\n{rules}"
         )
 
     def _format_history(self, history):

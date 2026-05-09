@@ -109,3 +109,4 @@ select { cursor: pointer; }
 .status-created { background: #166534; color: #86efac; }
 .status-timeout { background: #713f12; color: #fde047; }
 .status-warning { background: #7c2d12; color: #fdba74; }
+@keyframes spin { to { transform: rotate(360deg); } }

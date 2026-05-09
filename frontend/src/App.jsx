@@ -10,7 +10,7 @@ const TABS = [
 ]
 
 export default function App() {
-  const [tab, setTab] = useState('create')
+  const [tab, setTab] = useState('chat')
 
   return (
     <div className="app">

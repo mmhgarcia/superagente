@@ -11,7 +11,12 @@ export default function AgentChat() {
   const bottomRef = useRef(null)
 
   useEffect(() => {
-    listAgents().then(d => setAgents(d.agents)).catch(() => {})
+    listAgents().then(d => {
+      const all = d.agents
+      setAgents(all)
+      const coord = all.find(a => a.name === 'coordinador')
+      if (coord) setSelected(coord.id)
+    }).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -71,7 +76,17 @@ export default function AgentChat() {
                 <span style={{marginLeft:'0.5rem',whiteSpace:'pre-wrap'}}>{m.content}</span>
               </div>
             ))}
-            {loading && <p style={{color:'#64748b'}}>Pensando...</p>}
+            {loading && (
+              <div style={{padding:'0.75rem',background:'#1e293b',borderRadius:'6px',marginTop:'0.5rem'}}>
+                <div style={{display:'flex',alignItems:'center',gap:'0.75rem'}}>
+                  <span style={{width:'12px',height:'12px',border:'2px solid #60a5fa',borderTopColor:'transparent',borderRadius:'50%',animation:'spin 1s linear infinite',display:'inline-block'}} />
+                  <span style={{color:'#60a5fa',fontWeight:'bold'}}>Procesando...</span>
+                </div>
+                <p style={{color:'#94a3b8',fontSize:'0.8rem',marginTop:'0.5rem',marginBottom:0}}>
+                  El modelo tarda 1-2 minutos en responder en CPU. No es un cuelgue.
+                </p>
+              </div>
+            )}
             <div ref={bottomRef} />
           </div>
           <form onSubmit={handleSend} style={{display:'flex',gap:'0.5rem'}}>
