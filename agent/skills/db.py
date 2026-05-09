@@ -18,7 +18,7 @@ class ConsultarDbSkill(BaseSkill):
         query = args.get("query", "")
         if not query:
             return "Error: se requiere una consulta SQL en el argumento 'query'."
-        forbidden = ["drop", "delete", "insert", "update", "alter", "create", "truncate", "pragma"]
+        forbidden = ["drop", "delete", "insert", "update", "alter", "create", "truncate", "pragma", "replace", "attach", "detach", "reindex", "rename", "vacuum", "execute", "load_extension", "import"]
         q_lower = query.lower()
         for word in forbidden:
             if word in q_lower.split():
