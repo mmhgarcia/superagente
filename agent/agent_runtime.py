@@ -103,7 +103,7 @@ class AgentRuntime:
                         "consultar_db": (
                             'Args: {"query": "consulta SQL"}\n'
                             "  Tablas disponibles:\n"
-                            "  - productos(id, nombre, categoria, precio, stock)\n"
+                            "  - productos(id, nombre, categoria, precio, stock, stock_minimo)\n"
                             "  - ventas(id, producto_id, cantidad, total, fecha, mes)\n"
                             "  Para resúmenes usa GROUP BY y funciones SUM/COUNT/AVG."
                         ),
