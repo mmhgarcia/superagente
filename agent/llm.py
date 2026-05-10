@@ -8,7 +8,7 @@ CONFIG_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "config.json
 
 _config = {
     "model": "qwen2.5-coder:7b",
-    "max_tokens": 1024,
+    "max_tokens": 4096,
     "temperature": 0.7,
 }
 

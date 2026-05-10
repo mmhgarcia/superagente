@@ -100,10 +100,16 @@ class AgentRuntime:
                     schema = {
                         "calcular": 'Args: {"query": "expresión en lenguaje natural ej: 15% de 3400"}',
                         "resumir": 'Args: {"texto": "texto a resumir"}',
-                        "consultar_db": 'Args: {"query": "consulta SQL ej: SELECT * FROM productos"}',
+                        "consultar_db": (
+                            'Args: {"query": "consulta SQL"}\n'
+                            "  Tablas disponibles:\n"
+                            "  - productos(id, nombre, categoria, precio, stock)\n"
+                            "  - ventas(id, producto_id, cantidad, total, fecha, mes)\n"
+                            "  Para resúmenes usa GROUP BY y funciones SUM/COUNT/AVG."
+                        ),
                         "consultar_rag": 'Args: {"query": "texto de la consulta"}',
                     }.get(sid, "")
-                    lines.append(f"- {sid}: {s['description']} {schema}")
+                    lines.append(f"- {sid}: {s['description']}\n  {schema}")
         if agent.name == "coordinador":
             lines.append('- delegar: pasar una tarea a otro agente. Args: {"agente": "nombre", "mensaje": "consulta"}')
         return "\n".join(lines)
@@ -130,6 +136,11 @@ class AgentRuntime:
                 f"- Revisa si puedes responder usando una herramienta disponible. Si sí, USA la herramienta.\n"
                 f"- Si la herramienta responde con datos, presenta esos datos como respuesta.\n"
                 f"- No digas 'no disponible' sin antes intentar usar una herramienta.\n"
+            )
+        if "consultar_db" in (agent.skills or []):
+            base_rules += (
+                f"- IMPORTANTE: Para cualquier consulta sobre productos, ventas, stock o base de datos, DEBES usar consultar_db.\n"
+                f"- NUNCA respondas con datos inventados o de tu conocimiento. Siempre consulta la base de datos primero.\n"
             )
         base_rules += (
             f"- Si no tienes la información ni herramientas para obtenerla, di honestamente que no está disponible\n"
