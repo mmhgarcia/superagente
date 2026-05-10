@@ -1,19 +1,37 @@
+import json
+import os
 import requests
 
 OLLAMA_URL = "http://host.docker.internal:11435/v1"
-DEFAULT_MODEL = "qwen2.5-coder:7b"
 
-def generate(prompt, system_prompt="", model=DEFAULT_MODEL, max_tokens=200, temperature=0.7):
+CONFIG_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "config.json")
+
+_config = {
+    "model": "qwen2.5-coder:7b",
+    "max_tokens": 1024,
+    "temperature": 0.7,
+}
+
+
+def load_config():
+    global _config
+    if os.path.exists(CONFIG_PATH):
+        with open(CONFIG_PATH) as f:
+            data = json.load(f)
+        _config.update(data)
+
+
+def generate(prompt, system_prompt=""):
     messages = []
     if system_prompt:
         messages.append({"role": "system", "content": system_prompt})
     messages.append({"role": "user", "content": prompt})
 
     payload = {
-        "model": model,
+        "model": _config["model"],
         "messages": messages,
-        "temperature": temperature,
-        "max_tokens": max_tokens,
+        "temperature": _config["temperature"],
+        "max_tokens": _config["max_tokens"],
     }
     try:
         resp = requests.post(f"{OLLAMA_URL}/chat/completions", json=payload, timeout=300)

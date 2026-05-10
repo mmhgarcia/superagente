@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react'
-import { listSkills, addSkill, updateSkill, deleteSkill } from '../api'
+import { listSkills, addSkill, updateSkill, deleteSkill, getConfig, saveConfig } from '../api'
 
 export default function AgentConfig() {
-  const [model, setModel] = useState('tinyllama-1.1b-chat-v1.0')
-  const [maxTokens, setMaxTokens] = useState(300)
+  const [model, setModel] = useState('qwen2.5-coder:7b')
+  const [maxTokens, setMaxTokens] = useState(1024)
   const [temperature, setTemperature] = useState(0.7)
   const [saved, setSaved] = useState(false)
   const [skills, setSkills] = useState([])
@@ -13,15 +13,34 @@ export default function AgentConfig() {
   const [form, setForm] = useState({ id: '', name: '', description: '', prompt_hint: '' })
   const [error, setError] = useState(null)
 
-  useEffect(() => { loadSkills() }, [])
+  useEffect(() => {
+    loadSkills()
+    loadConfig()
+  }, [])
 
   function loadSkills() {
     listSkills().then(d => setSkills(d.skills)).catch(() => {})
   }
 
-  function handleSave() {
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
+  async function loadConfig() {
+    try {
+      const cfg = await getConfig()
+      setModel(cfg.model || 'qwen2.5-coder:7b')
+      setMaxTokens(cfg.max_tokens || 1024)
+      setTemperature(cfg.temperature ?? 0.7)
+    } catch {}
+  }
+
+  async function handleSave() {
+    setSaved(false)
+    setError(null)
+    try {
+      await saveConfig({ model, max_tokens: maxTokens, temperature })
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+    } catch (err) {
+      setError(err.message)
+    }
   }
 
   function resetForm() {
@@ -92,14 +111,14 @@ export default function AgentConfig() {
         {saved ? '✓ Guardado' : 'Guardar configuración'}
       </button>
 
+      {error && <p style={{color:'#fca5a5',fontSize:'0.875rem',marginTop:'0.5rem'}}>{error}</p>}
+
       <hr style={{borderColor:'#334155',margin:'1.5rem 0'}} />
 
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'1rem'}}>
         <h2 style={{fontSize:'1rem',margin:0}}>Almacén de Skills</h2>
         <button className="primary" onClick={openNew} style={{fontSize:'0.75rem',padding:'0.375rem 0.75rem'}}>+ Nueva skill</button>
       </div>
-
-      {error && <p style={{color:'#fca5a5',fontSize:'0.875rem',marginBottom:'0.5rem'}}>{error}</p>}
 
       {showForm && (
         <form onSubmit={handleSubmit} style={{background:'#0f172a',padding:'1rem',borderRadius:'8px',marginBottom:'1rem',border:'1px solid #334155'}}>

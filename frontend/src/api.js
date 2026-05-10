@@ -43,6 +43,19 @@ export function askAgent(agentId, message) {
   })
 }
 
+export function updateAgent(agentId, data) {
+  return request(`/agents/${agentId}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  })
+}
+
+export function deleteAgent(agentId) {
+  return request(`/agents/${agentId}`, {
+    method: 'DELETE',
+  })
+}
+
 export function getAgentHistory(agentId) {
   return request(`/agents/${agentId}/history`)
 }
@@ -70,5 +83,18 @@ export function updateSkill(skillId, data) {
 export function deleteSkill(skillId) {
   return request(`/skills/${skillId}`, {
     method: 'DELETE',
+  })
+}
+
+// --- Config ---
+
+export function getConfig() {
+  return request('/config')
+}
+
+export function saveConfig(data) {
+  return request('/config', {
+    method: 'PUT',
+    body: JSON.stringify(data),
   })
 }

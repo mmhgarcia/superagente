@@ -8,6 +8,7 @@ from .skills.calcular import CalcularSkill
 from .skills.resumir import ResumirSkill
 from .skills.faq import ConsultarFaqSkill
 from .skills.db import ConsultarDbSkill
+from .skills.consultar_rag import ConsultarRagSkill
 
 AGENTS_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "agents.json")
 
@@ -16,6 +17,7 @@ _EXECUTABLE_SKILLS = {
     "resumir": ResumirSkill(),
     "consultar_faq": ConsultarFaqSkill(),
     "consultar_db": ConsultarDbSkill(),
+    "consultar_rag": ConsultarRagSkill(),
 }
 
 
@@ -76,6 +78,19 @@ class AgentRuntime:
         del self._agents[agent_id]
         self._save()
 
+    def update_agent(self, agent_id, name=None, description=None, skills=None):
+        agent = self._agents.get(agent_id)
+        if not agent:
+            raise ValueError(f"Agente '{agent_id}' no encontrado")
+        if name is not None:
+            agent.name = name
+        if description is not None:
+            agent.description = description
+        if skills is not None:
+            agent.skills = skills
+        self._save()
+        return agent
+
     def _build_tools_text(self, agent):
         lines = []
         for sid in agent.skills:
@@ -86,6 +101,7 @@ class AgentRuntime:
                         "calcular": 'Args: {"query": "expresión en lenguaje natural ej: 15% de 3400"}',
                         "resumir": 'Args: {"texto": "texto a resumir"}',
                         "consultar_db": 'Args: {"query": "consulta SQL ej: SELECT * FROM productos"}',
+                        "consultar_rag": 'Args: {"query": "texto de la consulta"}',
                     }.get(sid, "")
                     lines.append(f"- {sid}: {s['description']} {schema}")
         if agent.name == "coordinador":

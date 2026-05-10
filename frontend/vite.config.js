@@ -11,6 +11,7 @@ export default defineConfig({
       '/agents': 'http://backend:8000',
       '/skills': 'http://backend:8000',
       '/health': 'http://backend:8000',
+      '/config': 'http://backend:8000',
     }
   }
 })

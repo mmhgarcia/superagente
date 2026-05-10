@@ -1,16 +1,16 @@
 import { useState } from 'react'
-import CreateAgent from './components/CreateAgent'
 import AgentChat from './components/AgentChat'
 import AgentConfig from './components/AgentConfig'
+import AgentManager from './components/AgentManager'
 
 const TABS = [
-  { key: 'create', label: 'Crear Agente' },
+  { key: 'manage', label: 'Gestionar Agentes' },
   { key: 'chat', label: 'Probar Agente' },
   { key: 'config', label: 'Configuración' },
 ]
 
 export default function App() {
-  const [tab, setTab] = useState('chat')
+  const [tab, setTab] = useState('manage')
 
   return (
     <div className="app">
@@ -29,7 +29,7 @@ export default function App() {
         </nav>
       </header>
       <main>
-        {tab === 'create' && <CreateAgent onCreated={() => setTab('chat')} />}
+        {tab === 'manage' && <AgentManager />}
         {tab === 'chat' && <AgentChat />}
         {tab === 'config' && <AgentConfig />}
       </main>
