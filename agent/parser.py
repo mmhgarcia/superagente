@@ -1,7 +1,34 @@
 import json
 import re
 
-def parse_response(raw: str) -> dict:
+def _find_json_objects(text):
+    objs = []
+    i = 0
+    while i < len(text):
+        if text[i] == "{":
+            depth = 0
+            j = i
+            while j < len(text):
+                if text[j] == "{":
+                    depth += 1
+                elif text[j] == "}":
+                    depth -= 1
+                    if depth == 0:
+                        objs.append(text[i : j + 1])
+                        i = j
+                        break
+                elif text[j] == '"':
+                    j += 1
+                    while j < len(text) and text[j] != '"':
+                        if text[j] == "\\":
+                            j += 1
+                        j += 1
+                j += 1
+        i += 1
+    return objs
+
+
+def parse_response(raw):
     if not raw:
         return {"type": "error", "detail": "respuesta vacía"}
 
@@ -12,29 +39,43 @@ def parse_response(raw: str) -> dict:
         if m:
             text = m.group(1).strip()
 
+    candidates = _find_json_objects(text)
+
+    for cand in candidates:
+        try:
+            data = json.loads(cand)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(data, dict):
+            continue
+        if "tool" in data:
+            return {
+                "type": "tool",
+                "name": data["tool"],
+                "args": data.get("args", {}),
+            }
+        if "reply" in data:
+            return {"type": "reply", "content": data["reply"]}
+
     try:
         data = json.loads(text)
+        if isinstance(data, dict):
+            if "tool" in data:
+                return {"type": "tool", "name": data["tool"], "args": data.get("args", {})}
+            if "reply" in data:
+                return {"type": "reply", "content": data["reply"]}
     except json.JSONDecodeError:
-        m = re.search(r"\{[^{}]*\}", text)
-        if m:
-            try:
-                data = json.loads(m.group(0))
-            except json.JSONDecodeError:
-                return {"type": "error", "detail": "JSON inválido"}
-        else:
-            return {"type": "error", "detail": "no se encontró JSON"}
+        pass
 
-    if not isinstance(data, dict):
-        return {"type": "error", "detail": "JSON no es un objeto"}
+    for cand in candidates:
+        try:
+            data = json.loads(cand)
+            if isinstance(data, dict):
+                if "tool" in data:
+                    return {"type": "tool", "name": data["tool"], "args": data.get("args", {})}
+                if "reply" in data:
+                    return {"type": "reply", "content": data["reply"]}
+        except json.JSONDecodeError:
+            continue
 
-    if "reply" in data:
-        return {"type": "reply", "content": data["reply"]}
-
-    if "tool" in data:
-        return {
-            "type": "tool",
-            "name": data["tool"],
-            "args": data.get("args", {}),
-        }
-
-    return {"type": "error", "detail": "JSON sin reply ni tool"}
+    return {"type": "error", "detail": "no se encontró JSON válido con tool o reply"}

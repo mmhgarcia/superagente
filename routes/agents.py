@@ -63,10 +63,10 @@ async def delete_agent(agent_id: str):
 
 @router.post("/agents/{agent_id}/ask")
 async def ask_agent(agent_id: str, req: AskRequest):
-    history, response = runtime.ask(agent_id, req.message)
+    history, response, confidence = runtime.ask(agent_id, req.message)
     if history is None:
         raise HTTPException(status_code=503, detail=response)
-    return {"response": response, "history": history[-10:]}
+    return {"response": response, "confidence": confidence, "history": history[-10:]}
 
 @router.get("/agents/{agent_id}/history")
 async def get_history(agent_id: str):

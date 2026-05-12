@@ -39,7 +39,7 @@ export default function AgentChat() {
     setLoading(true)
     try {
       const data = await askAgent(selected, msg)
-      setMessages(prev => [...prev, { role: 'assistant', content: data.response }])
+      setMessages(prev => [...prev, { role: 'assistant', content: data.response, confidence: data.confidence }])
     } catch {
       setMessages(prev => [...prev, { role: 'assistant', content: 'Error: no se pudo obtener respuesta' }])
     } finally {
@@ -73,6 +73,16 @@ export default function AgentChat() {
                 <strong style={{color: m.role === 'user' ? '#38bdf8' : '#a78bfa'}}>
                   {m.role === 'user' ? 'Tú' : selected}:
                 </strong>
+                {m.role === 'assistant' && m.confidence !== undefined && (
+                  <span style={{
+                    display:'inline-block',marginLeft:'0.5rem',padding:'0.1rem 0.4rem',
+                    borderRadius:'4px',fontSize:'0.7rem',fontWeight:600,
+                    background: m.confidence >= 80 ? '#166534' : m.confidence >= 50 ? '#713f12' : '#7f1d1d',
+                    color: m.confidence >= 80 ? '#86efac' : m.confidence >= 50 ? '#fde047' : '#fca5a5',
+                  }}>
+                    {m.confidence}%
+                  </span>
+                )}
                 <span style={{marginLeft:'0.5rem',whiteSpace:'pre-wrap'}}>{m.content}</span>
               </div>
             ))}

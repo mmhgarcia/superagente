@@ -165,7 +165,7 @@ class AgentRuntime:
             f"Propósito: {agent.description}\n\n"
             f"Responde ÚNICAMENTE en JSON. Elige entre:\n"
             f'  {{\"tool\": "nombre", "args": {{...}}}}  — si necesitas una herramienta\n'
-            f'  {{\"reply": "tu respuesta aquí"}}        — si ya tienes la respuesta\n\n'
+            f'  {{\"reply\": "tu respuesta aquí"}}        — si ya tienes la respuesta\n\n'
             f"Herramientas disponibles:\n{tools_text}"
             f"{extra}\n\n"
             f"Reglas:\n{rules}"
@@ -186,7 +186,7 @@ class AgentRuntime:
             target = self._find_agent_by_name(target_name)
             if not target:
                 return f"Error: agente '{target_name}' no encontrado"
-            _, respuesta = self.ask(target.id, mensaje)
+            _, respuesta, _ = self.ask(target.id, mensaje)
             return respuesta
         skill = _EXECUTABLE_SKILLS.get(parsed["name"])
         if not skill:
@@ -227,11 +227,12 @@ class AgentRuntime:
                 result = self._execute_tool(delegar)
                 agent.history.append({"role": "assistant", "content": str(result)})
                 self._save()
-                return agent.history, str(result)
+                return agent.history, str(result), 100
 
         system = self._system_prompt(agent)
         working = list(agent.history)
         final = None
+        confidence = 50
         max_steps = 3
 
         for step in range(max_steps):
@@ -242,7 +243,7 @@ class AgentRuntime:
             if raw is None:
                 if step == 0:
                     agent.history.pop()
-                return None, "El LLM no respondió a tiempo"
+                return None, "El LLM no respondió a tiempo", 0
 
             parsed = parse_response(raw)
 
@@ -254,7 +255,13 @@ class AgentRuntime:
                 working.append({"role": "assistant", "content": raw})
                 working.append({"role": "system", "content": f"Resultado de {parsed['name']}: {result}"})
                 final = result
+                if result.startswith("Error"):
+                    confidence = 20
+                else:
+                    confidence = 90
             else:
+                if step < max_steps - 1:
+                    continue
                 final = raw
                 break
 
@@ -263,4 +270,4 @@ class AgentRuntime:
 
         agent.history.append({"role": "assistant", "content": str(final)})
         self._save()
-        return agent.history, str(final)
+        return agent.history, str(final), confidence
