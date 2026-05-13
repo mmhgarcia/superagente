@@ -1,10 +1,12 @@
 import json
 import os
 import uuid
+import psycopg2
 from .skill_store import SkillStore
 from . import llm
 from .parser import parse_response
-from .handlers import sql_handler
+from .handlers import sql_handler, PG_DSN
+from .intent import clasificar_intencion
 from .skills.calcular import CalcularSkill
 from .skills.resumir import ResumirSkill
 from .skills.faq import ConsultarFaqSkill
@@ -44,21 +46,79 @@ class AgentRuntime:
     def __init__(self, skill_store: SkillStore):
         self._agents = {}
         self._skill_store = skill_store
+        self._init_db()
+        self._migrate_json()
         self._load()
 
+    def _conn(self):
+        return psycopg2.connect(PG_DSN)
+
+    def _init_db(self):
+        conn = self._conn()
+        conn.autocommit = True
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS agents (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                description TEXT NOT NULL DEFAULT '',
+                skills JSONB NOT NULL DEFAULT '["base_chat"]',
+                history JSONB NOT NULL DEFAULT '[]'
+            )
+        """)
+        cur.close()
+        conn.close()
+
+    def _migrate_json(self):
+        if not os.path.exists(AGENTS_PATH):
+            return
+        with open(AGENTS_PATH) as f:
+            data = json.load(f)
+        if not data:
+            return
+        conn = self._conn()
+        conn.autocommit = True
+        cur = conn.cursor()
+        for a in data:
+            cur.execute(
+                "INSERT INTO agents (id, name, description, skills, history) "
+                "VALUES (%s, %s, %s, %s, %s) ON CONFLICT (id) DO NOTHING",
+                (a["id"], a["name"], a.get("description", ""),
+                 json.dumps(a.get("skills", ["base_chat"])),
+                 json.dumps(a.get("history", []))),
+            )
+        cur.close()
+        conn.close()
+        os.remove(AGENTS_PATH)
+
     def _load(self):
-        if os.path.exists(AGENTS_PATH):
-            with open(AGENTS_PATH) as f:
-                data = json.load(f)
-            for a in data:
-                agent = Agent(a["id"], a["name"], a["description"], a.get("skills", ["base_chat"]))
-                agent.history = a.get("history", [])
-                self._agents[agent.id] = agent
+        conn = self._conn()
+        cur = conn.cursor()
+        cur.execute("SELECT id, name, description, skills, history FROM agents ORDER BY name")
+        for row in cur.fetchall():
+            agent = Agent(row[0], row[1], row[2], row[3])
+            agent.history = row[4]
+            self._agents[agent.id] = agent
+        cur.close()
+        conn.close()
 
     def _save(self):
-        os.makedirs(os.path.dirname(AGENTS_PATH), exist_ok=True)
-        with open(AGENTS_PATH, "w") as f:
-            json.dump([a.to_dict() for a in self._agents.values()], f, indent=2, ensure_ascii=False)
+        conn = self._conn()
+        conn.autocommit = True
+        cur = conn.cursor()
+        for agent in self._agents.values():
+            cur.execute(
+                "INSERT INTO agents (id, name, description, skills, history) "
+                "VALUES (%s, %s, %s, %s, %s) "
+                "ON CONFLICT (id) DO UPDATE SET "
+                "name=EXCLUDED.name, description=EXCLUDED.description, "
+                "skills=EXCLUDED.skills, history=EXCLUDED.history",
+                (agent.id, agent.name, agent.description,
+                 json.dumps(agent.skills),
+                 json.dumps(agent.history)),
+            )
+        cur.close()
+        conn.close()
 
     def create_agent(self, name, description, skills=None):
         agent_id = str(uuid.uuid4())[:8]
@@ -77,7 +137,12 @@ class AgentRuntime:
         if agent_id not in self._agents:
             raise ValueError(f"Agente '{agent_id}' no encontrado")
         del self._agents[agent_id]
-        self._save()
+        conn = self._conn()
+        conn.autocommit = True
+        cur = conn.cursor()
+        cur.execute("DELETE FROM agents WHERE id = %s", (agent_id,))
+        cur.close()
+        conn.close()
 
     def update_agent(self, agent_id, name=None, description=None, skills=None):
         agent = self._agents.get(agent_id)
@@ -113,33 +178,6 @@ class AgentRuntime:
                 return a
         return None
 
-    def _route_message(self, message):
-        msg = message.lower()
-        routes = {
-            "datos": ["producto", "inventario", "stock", "precio", "venta", "categoria", "categoría", "listado", "cuántos", "cuantos", "registrado"],
-            "atencion": ["horario", "factura", "devolucion", "devolución", "envio", "envío", "pago", "garantia", "garantía", "contacto", "política", "politica"],
-            "finanzas": ["iva", "finanzas", "contabilidad", "impuesto", "presupuesto", "interés", "interes", "tasa", "descuento"],
-        }
-        for agent_name, keywords in routes.items():
-            if any(k in msg for k in keywords):
-                target = self._find_agent_by_name(agent_name)
-                if target:
-                    return agent_name
-        return None
-
-    @staticmethod
-    def _es_conversacion(message):
-        import re
-        msg = message.lower().strip()
-        saludos = ["hola", "buenos", "buen", "que tal", "como estas", "hey", "hello", "hi"]
-        despedidas = ["chao", "adios", "nos vemos", "gracias", "bye", "hasta luego", "saludos"]
-        apoyo = ["ok", "vale", "de acuerdo", "perfecto", "entiendo"]
-        if any(s in msg for s in saludos + despedidas + apoyo):
-            return True
-        if re.search(r"^(si|no|ok|vale)\W*$", msg):
-            return True
-        return False
-
     def ask(self, agent_id, message):
         agent = self._agents.get(agent_id)
         if not agent:
@@ -147,7 +185,9 @@ class AgentRuntime:
 
         agent.history.append({"role": "user", "content": message})
 
-        if self._es_conversacion(message):
+        intent = clasificar_intencion(message)
+
+        if intent == "conversacion":
             system = "Eres un asistente amigable. Responde saludos de forma breve y natural."
             raw = llm.generate(message, system_prompt=system)
             final = raw or "Hola!"
@@ -155,10 +195,10 @@ class AgentRuntime:
             self._save()
             return agent.history, final, 100
 
-        if agent.name == "coordinador":
-            routed = self._route_message(message)
-            if routed:
-                delegar = {"name": "delegar", "args": {"agente": routed, "mensaje": message}}
+        if agent.name == "coordinador" and intent in ("datos", "atencion", "finanzas"):
+            target = self._find_agent_by_name(intent)
+            if target:
+                delegar = {"name": "delegar", "args": {"agente": intent, "mensaje": message}}
                 result = self._execute_tool(delegar)
                 agent.history.append({"role": "assistant", "content": str(result)})
                 self._save()

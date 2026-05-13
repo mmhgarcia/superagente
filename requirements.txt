@@ -4,3 +4,6 @@ requests
 pytest
 httpx
 psycopg2-binary
+langchain-ollama
+langchain-community
+sqlalchemy

@@ -21,7 +21,7 @@ def load_config():
         _config.update(data)
 
 
-def generate(prompt, system_prompt=""):
+def generate(prompt, system_prompt="", temperature=None):
     messages = []
     if system_prompt:
         messages.append({"role": "system", "content": system_prompt})
@@ -30,7 +30,7 @@ def generate(prompt, system_prompt=""):
     payload = {
         "model": _config["model"],
         "messages": messages,
-        "temperature": _config["temperature"],
+        "temperature": _config["temperature"] if temperature is None else temperature,
         "max_tokens": _config["max_tokens"],
     }
     try:
