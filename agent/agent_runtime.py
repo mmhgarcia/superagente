@@ -4,6 +4,7 @@ import uuid
 from .skill_store import SkillStore
 from . import llm
 from .parser import parse_response
+from .handlers import sql_handler
 from .skills.calcular import CalcularSkill
 from .skills.resumir import ResumirSkill
 from .skills.faq import ConsultarFaqSkill
@@ -91,93 +92,6 @@ class AgentRuntime:
         self._save()
         return agent
 
-    def _build_tools_text(self, agent):
-        lines = []
-        for sid in agent.skills:
-            if sid in _EXECUTABLE_SKILLS:
-                s = self._skill_store.get_skill(sid)
-                if s:
-                    schema = {
-                        "calcular": 'Args: {"query": "expresión en lenguaje natural ej: 15% de 3400"}',
-                        "resumir": 'Args: {"texto": "texto a resumir"}',
-                        "consultar_db": (
-                            'Args: {"query": "consulta SQL"}\n'
-                            "  Tablas disponibles:\n"
-                            "  - productos(id, nombre, categoria, precio, stock, stock_minimo)\n"
-                            "  - ventas(id, producto_id, cantidad, total, fecha, mes)\n"
-                            "  Para resúmenes usa GROUP BY y funciones SUM/COUNT/AVG."
-                        ),
-                        "consultar_rag": 'Args: {"query": "texto de la consulta"}',
-                    }.get(sid, "")
-                    lines.append(f"- {sid}: {s['description']}\n  {schema}")
-        if agent.name == "coordinador":
-            lines.append('- delegar: pasar una tarea a otro agente. Args: {"agente": "nombre", "mensaje": "consulta"}')
-        return "\n".join(lines)
-
-    def _system_prompt(self, agent):
-        tools_text = self._build_tools_text(agent)
-        is_coordinador = agent.name == "coordinador"
-        extra = ""
-        if is_coordinador:
-            agents_list = "\n".join(
-                f"- {a.name}: {a.description}"
-                for a in self._agents.values()
-                if a.id != agent.id
-            )
-            extra = (
-                f"\n\n"
-                f"Para delegar tareas usa: {{\"tool\": \"delegar\", \"args\": {{\"agente\": \"nombre\", \"mensaje\": \"consulta\"}}}}\n"
-                f"Agentes disponibles:\n{agents_list}"
-            )
-        has_tools = bool(tools_text.strip())
-        base_rules = ""
-        if has_tools:
-            base_rules += (
-                f"- Revisa si puedes responder usando una herramienta disponible. Si sí, USA la herramienta.\n"
-                f"- Si la herramienta responde con datos, presenta esos datos como respuesta.\n"
-                f"- No digas 'no disponible' sin antes intentar usar una herramienta.\n"
-            )
-        if "consultar_db" in (agent.skills or []):
-            base_rules += (
-                f"- IMPORTANTE: Para cualquier consulta sobre productos, ventas, stock o base de datos, DEBES usar consultar_db.\n"
-                f"- NUNCA respondas con datos inventados o de tu conocimiento. Siempre consulta la base de datos primero.\n"
-            )
-        base_rules += (
-            f"- Si no tienes la información ni herramientas para obtenerla, di honestamente que no está disponible\n"
-            f"- Responde ÚNICAMENTE con JSON, sin texto adicional"
-        )
-        if is_coordinador:
-            rules = (
-                f"- Saluda/despídete directamente si es solo cortesía (hola, gracias, chao)\n"
-                f"- Para TODO lo demás, DEBES usar delegar. NUNCA respondas preguntas técnicas directamente.\n"
-                f"- Lee bien la descripción de cada agente antes de delegar\n"
-                f"- Ejemplo: productos, stock, ventas o inventario → delegar a datos\n"
-                f"- Ejemplo: horarios, facturas o políticas → delegar a atencion\n"
-                f"- Ejemplo: cálculos, IVA o finanzas → delegar a finanzas\n"
-                f"- Si un agente puede responder, USA delegar. No digas 'no disponible' sin antes delegar.\n"
-                f"- Solo si ningún agente es adecuado, responde que no está disponible.\n"
-                f"- Responde ÚNICAMENTE con JSON, sin texto adicional"
-            )
-        else:
-            rules = base_rules
-        return (
-            f"Eres {agent.name}, un agente autónomo.\n\n"
-            f"Propósito: {agent.description}\n\n"
-            f"Responde ÚNICAMENTE en JSON. Elige entre:\n"
-            f'  {{\"tool\": "nombre", "args": {{...}}}}  — si necesitas una herramienta\n'
-            f'  {{\"reply\": "tu respuesta aquí"}}        — si ya tienes la respuesta\n\n'
-            f"Herramientas disponibles:\n{tools_text}"
-            f"{extra}\n\n"
-            f"Reglas:\n{rules}"
-        )
-
-    def _format_history(self, history):
-        labels = {"user": "Usuario", "assistant": "Asistente", "system": "Sistema"}
-        return "\n".join(
-            f"{labels.get(m['role'], 'Sistema')}: {m['content']}"
-            for m in history[-8:]
-        )
-
     def _execute_tool(self, parsed):
         if parsed["name"] == "delegar":
             args = parsed["args"]
@@ -213,12 +127,33 @@ class AgentRuntime:
                     return agent_name
         return None
 
+    @staticmethod
+    def _es_conversacion(message):
+        import re
+        msg = message.lower().strip()
+        saludos = ["hola", "buenos", "buen", "que tal", "como estas", "hey", "hello", "hi"]
+        despedidas = ["chao", "adios", "nos vemos", "gracias", "bye", "hasta luego", "saludos"]
+        apoyo = ["ok", "vale", "de acuerdo", "perfecto", "entiendo"]
+        if any(s in msg for s in saludos + despedidas + apoyo):
+            return True
+        if re.search(r"^(si|no|ok|vale)\W*$", msg):
+            return True
+        return False
+
     def ask(self, agent_id, message):
         agent = self._agents.get(agent_id)
         if not agent:
             return None, "Agente no encontrado"
 
         agent.history.append({"role": "user", "content": message})
+
+        if self._es_conversacion(message):
+            system = "Eres un asistente amigable. Responde saludos de forma breve y natural."
+            raw = llm.generate(message, system_prompt=system)
+            final = raw or "Hola!"
+            agent.history.append({"role": "assistant", "content": final})
+            self._save()
+            return agent.history, final, 100
 
         if agent.name == "coordinador":
             routed = self._route_message(message)
@@ -229,45 +164,7 @@ class AgentRuntime:
                 self._save()
                 return agent.history, str(result), 100
 
-        system = self._system_prompt(agent)
-        working = list(agent.history)
-        final = None
-        confidence = 50
-        max_steps = 3
-
-        for step in range(max_steps):
-            history_text = self._format_history(working)
-            prompt = f"{history_text}\nAsistente:"
-
-            raw = llm.generate(prompt, system_prompt=system)
-            if raw is None:
-                if step == 0:
-                    agent.history.pop()
-                return None, "El LLM no respondió a tiempo", 0
-
-            parsed = parse_response(raw)
-
-            if parsed["type"] == "reply":
-                final = parsed["content"]
-                break
-            elif parsed["type"] == "tool":
-                result = self._execute_tool(parsed)
-                working.append({"role": "assistant", "content": raw})
-                working.append({"role": "system", "content": f"Resultado de {parsed['name']}: {result}"})
-                final = result
-                if result.startswith("Error"):
-                    confidence = 20
-                else:
-                    confidence = 90
-            else:
-                if step < max_steps - 1:
-                    continue
-                final = raw
-                break
-
-        if final is None:
-            final = "El agente no pudo completar la solicitud"
-
-        agent.history.append({"role": "assistant", "content": str(final)})
+        result = sql_handler(message)
+        agent.history.append({"role": "assistant", "content": str(result)})
         self._save()
-        return agent.history, str(final), confidence
+        return agent.history, str(result), 100

@@ -1,13 +1,32 @@
 services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: superagente
+      POSTGRES_USER: superagente
+      POSTGRES_PASSWORD: superagente
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U superagente -d superagente"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
   backend:
     build: .
     ports:
       - "8000:8000"
     volumes:
       - .:/app
-    command: uvicorn app:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn app:app --host 0.0.0.0 --port 8000
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   frontend:
     build: ./frontend
@@ -18,3 +37,6 @@ services:
       - /app/node_modules
     depends_on:
       - backend
+
+volumes:
+  pgdata:
